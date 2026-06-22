@@ -17,21 +17,14 @@ import os
 import io
 from datetime import datetime
 
-# ---- AUTO OPEN BROWSER ----
 import webbrowser
 from threading import Timer
 
 app = Flask(__name__)
-
-# Path to your scripts
 ADD_FACES_SCRIPT = "add_faces.py"
 TRAIN_MODEL_SCRIPT = "train_model.py"
 ATTENDANCE_SCRIPT = "attendance_module.py"
 ATTENDANCE_CSV = "attendance.csv"
-
-# ---------------------------------------------------------------------------
-# HTML TEMPLATE
-# ---------------------------------------------------------------------------
 
 INDEX_HTML = '''
 <!doctype html>
@@ -41,58 +34,194 @@ INDEX_HTML = '''
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Smart Attendance Dashboard</title>
   <style>
-    :root{--bg:#f6f8fa;--card:#fff;--accent:#1976d2;--accent-dark:#1565c0;--danger:#d32f2f;--muted:#666}
-    body{font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;background:var(--bg);margin:0;padding:30px;color:#222}
-    .container{max-width:980px;margin:0 auto}
-    .header{display:flex;align-items:center;justify-content:space-between}
-    h1{font-size:20px;margin:0}
-    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:20px}
-    .btn{display:inline-block;padding:12px 18px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-weight:600;text-decoration:none;cursor:pointer;text-align:center}
-    .btn-danger{background:var(--danger)}
-    .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 6px 20px rgba(20,30,50,0.06)}
-    .muted{color:var(--muted);font-size:13px}
-    table{width:100%;border-collapse:collapse;margin-top:12px}
-    th,td{padding:8px 6px;border-bottom:1px solid #eee;text-align:left}
-    .controls{display:flex;gap:8px;align-items:center}
-    input[type=date]{padding:8px;border-radius:8px;border:1px solid #ddd}
-    .small{font-size:13px}
+body{
+    margin:0;
+    font-family:"Segoe UI",sans-serif;
+    background:#eef2f7;
+}
+
+.container{
+    display:flex;
+    max-width:1200px;
+    margin:auto;
+}
+
+/* Sidebar */
+
+.sidebar{
+
+    width:240px;
+    min-height:100vh;
+    background:#111827;
+    padding:25px;
+    color:white;
+
+}
+
+.sidebar h2{
+    margin-bottom:40px;
+}
+
+.menu-btn{
+
+    width:100%;
+    padding:14px;
+    margin:10px 0;
+
+    border:none;
+    border-radius:12px;
+
+    background:#2563eb;
+    color:white;
+
+    font-size:15px;
+    cursor:pointer;
+}
+
+.menu-btn:hover{
+
+    background:#1d4ed8;
+
+}
+
+/* Main */
+
+.main{
+
+    flex:1;
+    padding:30px;
+
+}
+
+.header{
+
+display:flex;
+justify-content:space-between;
+align-items:center;
+
+}
+
+.stats{
+
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:20px;
+margin-top:25px;
+
+}
+
+.stat-card{
+
+background:white;
+padding:25px;
+border-radius:18px;
+
+box-shadow:
+0 10px 30px rgba(0,0,0,.08);
+
+}
+
+.stat-card h1{
+
+color:#2563eb;
+
+}
+
+.card{
+
+background:white;
+border-radius:18px;
+padding:25px;
+margin-top:25px;
+
+box-shadow:
+0 10px 30px rgba(0,0,0,.08);
+
+}
+
+table{
+
+width:100%;
+border-collapse:collapse;
+
+}
+
+th{
+
+background:#2563eb;
+color:white;
+
+}
+
+td,th{
+
+padding:14px;
+
+}
+
+tr:nth-child(even){
+
+background:#f1f5f9;
+
+}
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>SMART ATTENDANCE DASHBOARD</h1>
-      <div class="muted">Server time: {{ server_time }}</div>
-    </div>
+    <aside class="sidebar">
+      <h2>Smart Attendance</h2>
+      <button class="menu-btn" onclick="openRegister()">👨‍🎓 Register Student</button>
+      <button class="menu-btn" onclick="action('train')">🧠 Train Model</button>
+      <button class="menu-btn" onclick="action('start')">📷 Start Attendance</button>
+      <button class="menu-btn" onclick="loadAttendance()">📊 View Attendance</button>
+    </aside>
 
-    <div class="grid">
-      <div class="card">
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <button class="btn" onclick="action('register')">Register Student</button>
-          <button class="btn" onclick="action('train')">Train Model</button>
-          <button class="btn" onclick="action('start')">Start Attendance</button>
-          <button class="btn" onclick="loadAttendance()">View Attendance</button>
-          <button class="btn" onclick="exportExcel()">Export to Excel</button>
-          <a class="btn btn-danger" href="/quit" onclick="return confirm('Quit server?')">Quit Server</a>
+    <main class="main">
+      <div id="registerBox" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.75);display:flex;align-items:center;justify-content:center;z-index:50;">
+        <div style="background:white;border-radius:18px;padding:30px;width:min(420px,90%);box-shadow:0 20px 50px rgba(0,0,0,0.2);">
+          <h2 style="margin-top:0">Register Student</h2>
+          <input id="studentName" type="text" placeholder="Student name" style="width:100%;padding:14px;border:1px solid #d1d5db;border-radius:12px;margin-bottom:18px;" />
+          <button class="menu-btn" style="width:100%;padding:14px;margin:0 0 12px 0;" onclick="registerStudent()">Start Registration</button>
+          <button class="menu-btn" style="width:100%;padding:14px;margin:0;background:#6b7280;" onclick="document.getElementById('registerBox').style.display='none'">Cancel</button>
+        </div>
+      </div>
+      <div class="header">
+        <div>
+          <h1>SMART ATTENDANCE DASHBOARD</h1>
+          <div style="color:#4b5563;margin-top:8px">Server time: {{ server_time }}</div>
+        </div>
+        <div style="color:#4b5563">Status: Online</div>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <h1>Total Students</h1>
+          <p style="font-size:36px;margin:0">{{ total_students }}</p>
+        </div>
+        <div class="stat-card">
+          <h1>Today's Attendance</h1>
+          <p style="font-size:36px;margin:0">{{ today_count }}</p>
+        </div>
+        <div class="stat-card">
+          <h1>Status</h1>
+          <p style="font-size:36px;margin:0">Online</p>
         </div>
       </div>
 
-      <div class="card">
-        <div class="controls">
-          <label class="small">Filter date:</label>
-          <input id="filter-date" type="date" />
-          <button class="btn small" onclick="filterByDate()">Filter</button>
-          <button class="btn small" onclick="clearFilter()">Clear</button>
+      <section class="card">
+        <h2 style="margin-top:0">Attendance Records</h2>
+        <div class="card" style="padding:0;box-shadow:none;margin:0">
+          <div class="controls" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:20px">
+            <label style="font-weight:600;color:#374151">Filter date:</label>
+            <input id="filter-date" type="date" style="padding:12px;border-radius:12px;border:1px solid #d1d5db;" />
+            <button class="menu-btn" style="width:auto;padding:12px 18px;" onclick="filterByDate()">Filter</button>
+            <button class="menu-btn" style="width:auto;padding:12px 18px;" onclick="clearFilter()">Clear</button>
+          </div>
         </div>
-        <div id="status" class="muted small" style="margin-top:10px">Status: idle</div>
-      </div>
-    </div>
-
-    <div id="table-wrap" class="card" style="margin-top:18px">
-      <h3 style="margin-top:0">Attendance Records</h3>
-      <div id="table-container">No data loaded. Click "View Attendance".</div>
-    </div>
-
+        <div id="status" style="color:#6b7280;margin-bottom:20px">Status: idle</div>
+        <div id="table-container">No data loaded. Click "View Attendance".</div>
+      </section>
+    </main>
   </div>
 
 <script>
@@ -120,7 +249,7 @@ async function loadAttendance(){
 
 function renderTable(columns, rows){
   if(rows.length===0){
-    document.getElementById('table-container').innerHTML = '<div class="muted">No records found</div>';
+    document.getElementById('table-container').innerHTML = '<div style="color:#6b7280">No records found</div>';
     return
   }
   let html = '<table><thead><tr>' + columns.map(c=>'<th>'+c+'</th>').join('') + '</tr></thead><tbody>'
@@ -141,6 +270,38 @@ async function filterByDate(){
 function clearFilter(){
   document.getElementById('filter-date').value='';
   loadAttendance();
+}
+
+function openRegister(){
+
+document.getElementById(
+"registerBox"
+).style.display="block";
+
+}
+
+function registerStudent(){
+    let name = document.getElementById("studentName").value.trim();
+    if(!name){
+        alert('Please enter a student name.');
+        return;
+    }
+
+    fetch("/register",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name:name})
+    })
+    .then(r=>r.json())
+    .then(data=>{
+        alert(data.message);
+        document.getElementById('registerBox').style.display='none';
+        document.getElementById('studentName').value='';
+    })
+    .catch(err=>{
+        alert('Failed to start registration.');
+        console.error(err);
+    });
 }
 
 async function exportExcel(){
@@ -164,14 +325,31 @@ async function exportExcel(){
 </html>
 '''
 
-# ---------------------------------------------------------------------------
-# ROUTES
-# ---------------------------------------------------------------------------
-
 @app.route('/')
 def index():
     server_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    return render_template_string(INDEX_HTML, server_time=server_time)
+    total_students = 0
+    today_count = 0
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    if os.path.exists(ATTENDANCE_CSV):
+        try:
+            df = pd.read_csv(ATTENDANCE_CSV)
+            if 'Name' in df.columns:
+                total_students = int(df['Name'].nunique())
+            else:
+                total_students = int(len(df))
+            if 'Date' in df.columns:
+                today_count = int(df[df['Date'] == today].shape[0])
+        except pd.errors.EmptyDataError:
+            pass
+
+    return render_template_string(
+        INDEX_HTML,
+        server_time=server_time,
+        total_students=total_students,
+        today_count=today_count,
+    )
 
 
 @app.route('/api/action', methods=['POST'])
@@ -203,13 +381,35 @@ def api_action():
     return jsonify({'message':'Unknown action'}), 400
 
 
+@app.route("/register", methods=["POST"])
+def register():
+
+    data = request.get_json()
+
+    name = data["name"]
+
+    subprocess.Popen(
+        ["python", "add_faces.py", name]
+    )
+
+    return jsonify(
+        {
+        "message":
+        f"Camera started for {name}"
+        }
+    )
+
+
 @app.route('/api/attendance')
 def api_attendance():
     date = request.args.get('date')
     if not os.path.exists(ATTENDANCE_CSV):
         return jsonify({'columns':[], 'rows':[]})
 
-    df = pd.read_csv(ATTENDANCE_CSV)
+    try:
+        df = pd.read_csv(ATTENDANCE_CSV)
+    except pd.errors.EmptyDataError:
+        return jsonify({'columns':[], 'rows':[]})
 
     if date:
         df = df[df.get('Date') == date]
@@ -225,7 +425,11 @@ def api_export():
     if not os.path.exists(ATTENDANCE_CSV):
         return jsonify({'error':'attendance.csv not found'}), 404
 
-    df = pd.read_csv(ATTENDANCE_CSV)
+    try:
+        df = pd.read_csv(ATTENDANCE_CSV)
+    except pd.errors.EmptyDataError:
+        return jsonify({'error':'attendance.csv is empty'}), 404
+
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -248,14 +452,9 @@ def quit_server():
         return 'Server shutting down...'
     return 'Unable to shutdown server', 500
 
-
-# ---------------------------------------------------------------------------
-# AUTO-OPEN BROWSER + START SERVER
-# ---------------------------------------------------------------------------
-
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:5000/")
 
 if __name__ == '__main__':
     Timer(1, open_browser).start()
-    app.run(debug=True)
+    app.run(host="127.0.0.1", port=5000)
